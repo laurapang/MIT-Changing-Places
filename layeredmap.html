@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>Layered Map</title>
+	<link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.3/leaflet.css">
+	<link rel="stylesheet" href="http://leaflet.github.io/Leaflet.label/leaflet.label.css">
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css">
+	<link href="http://netdna.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.css" rel="stylesheet">
+	<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+	<link rel="stylesheet" href="layeredmap.css">
+	<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+	<script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.3/leaflet.js"></script>
+	<script type="text/javascript" src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+	<script type="text/javascript" src="http://leaflet.github.io/Leaflet.label/leaflet.label.js"></script>
+	<script type="text/javascript" src="MovingMarker.js"></script>
+</head>
+<body>
+	<div id="map"></div>
+	<div id="buttons" class="btn-group">
+		<button id="POI" type="button" class="btn btn-info btn-md">Points of Interest</button>
+	    <div class="btn-group">
+			<button id="dropdownMenu" type="button" class="btn btn-info btn-md dropdown-toggle" data-toggle="dropdown">
+			Wi-Fi <span class="caret"></span></button>
+			<ul class="dropdown-menu" role="menu">
+			<li><a id="WifiCar" class="dropdown" href="javascript:void(0);">from Cars</a></li>
+			<li><a id="WifiPed" class="dropdown" href="javascript:void(0);">from Pedestrians</a></li>
+			</ul>
+		</div>
+	</div>
+	<button id="animate" type="button" class="btn btn-primary btn-md">Animate</button> 
+	<div id="legend" class="panel panel-info">
+		<div class="panel-heading">Points of Interest</div>
+		<div class="panel-body">
+			<p><i class="fa fa-cutlery"></i>&nbsp; Restaurants &nbsp; <span style="float: right; background-color: green; color: green; border-radius: 50%">- . -</span></p>
+			<p><i class="fa fa-camera-retro"></i>&nbsp; Attractions &nbsp;<span style="float: right; background-color: purple; color: purple; border-radius: 50%">- . -</span></p>
+			<p><i class="fa fa-bed"></i>&nbsp; Hotels &nbsp;<span style="float: right; background-color: orange; color: orange; border-radius: 50%">- . -</span></p>
+		</div>
+	</div>
+
+	<script type="text/javascript">
+
+		function init() {
+
+			$(".dropdown").click(function() {
+			   $("#dropdownMenu").dropdown("toggle");
+			});
+
+			L.Map = L.Map.extend({
+			    openPopup: function(popup) {
+			      this._popup = popup;
+			      return this.addLayer(popup).fire('popupopen', {
+			          popup: this._popup
+			      });
+			    }
+			});
+
+			var map = L.map('map').setView([42.508, 1.530], 16);
+			map.attributionControl.setPrefix('');
+
+			L.tileLayer('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+				subdomains: '0123',
+				minZoom: 11,
+				maxZoom: 19
+			}).addTo(map);
+
+			var togglePOI = false;
+			var toggleWifiCar = false;
+			var toggleWifiPed = false;
+			var toggleAnimate = true;
+
+			$("#POI").on("click", function() {
+				if (!togglePOI) {
+					map.removeLayer(POI);
+					console.log("removed POI");
+				}
+				else {
+					map.addLayer(POI);
+					console.log("added POI");
+				}
+				togglePOI = !togglePOI;
+				return false;
+			});
+
+			$("#WifiCar").on("click", function() {
+				if (!toggleWifiCar) {
+					map.removeLayer(WifiCar);
+					console.log("removed WifiCar");
+				}
+				else {
+					map.addLayer(WifiCar);
+					console.log("added WifiCar");
+				}
+				toggleWifiCar = !toggleWifiCar;
+				return false;
+			});
+
+			$("#WifiPed").on("click", function() {
+				if (!toggleWifiPed) {
+					map.removeLayer(WifiPed);
+					console.log("removed WifiPed");
+				}
+				else {
+					map.addLayer(WifiPed);
+					console.log("added WifiPed");
+				}
+				toggleWifiPed = !toggleWifiPed;
+				return false;
+			});
+
+			$.ajax({
+				type: "GET",
+				url: "nodes_net.csv",
+				dataType: "text",
+				success: function(data) {drawNodes(data);}
+			});
+
+			function drawNodes(data) {
+				var lines = data.split(/\r\n|\n/);
+
+				var id = [];
+				var latlng = [];
+
+				var headings = [lines[0].split(',')[0], lines[0].split(',')[2], lines[0].split(',')[3]];
+
+				for (var j = 1; j < lines.length; j++) {
+
+					//create lists of id, lat, lng
+					var values = lines[j].split(',');
+					id.push(values[0]);
+					latlng.push([values[2], values[3]]);
+
+					//draw markers on map
+					var circles = [];
+					for (var i = 0; i < id.length; i++) {
+						point = latlng[i];
+						var circle = L.circle(point, 8, {
+							color: '#5bc0de',
+							fillColor: '#46b8da',
+							fillOpacity: 1
+						});
+						circle.bindLabel("Wi-fi Access Point " + id[i]);
+						circles.push(circle);
+					}
+				}
+				WifiAPs = L.layerGroup(circles);
+				WifiAPs.addTo(map);
+
+				$.ajax({
+					type: "GET",
+					url: "car_net.csv",
+					dataType: "text",
+					success: function(data) {drawCarData(data);}
+				});
+
+				var carpoints = [];
+
+				function drawCarData(data) {
+					var lines = data.split(/\r\n|\n/);
+
+					var source_target = [];
+					var weight = [];
+					var movingscar = [];
+
+					for (var j = 1; j < lines.length-1; j++) {
+
+						//create lists of source, target, frequency
+						var values = lines[j].split(',');
+						source_target.push([parseInt(values[0]),parseInt(values[1])]);
+						weight.push(parseInt(values[2]));
+
+						//draw wifi data from cars on map
+						for (var i = 0; i < source_target.length-1; i++) {
+							source = [parseFloat(latlng[source_target[i][0]][0]), parseFloat(latlng[source_target[i][0]][1])];
+							target = [parseFloat(latlng[source_target[i][1]][0]), parseFloat(latlng[source_target[i][1]][1])];
+							scaled_weight = 10*parseFloat(weight[i]/parseFloat(eval(weight.join('+'))));
+
+							var carpoint = L.circleMarker(source, {
+								radius: 5*scaled_weight,
+								color: 'red',
+								fillOpacity: 0.7
+							});
+							carpoint.bindLabel("Wi-fi Access Point " + source_target[i][0] + " to Wi-fi Access Point " + source_target[i][1]);
+							carpoints.push(carpoint);
+							var movingcar = L.circleMarker.movingMarker([[source, target]], [scaled_weight*1000], {autostart: true});
+							movingscar.push(movingcar);
+						}
+					}
+					MovingsCar = L.layerGroup(movingscar);
+					WifiCar = L.layerGroup(carpoints);
+					WifiCar.addTo(map);		
+					$("#animate").on("click", function(carpoints) {
+						if (!toggleAnimate) {
+							console.log("stop animating");
+							for (var i = 0; i < carpoints.length-1; i++) {
+								carpoints[i].setRadius(5);
+								map.removeLayer(MovingsCar);
+							}
+						}
+						else {
+							console.log("start animating");
+							for (var i = 0; i < carpoints.length-1; i++) {
+								carpoints[i].setRadius(5*scaled_weight[i]);
+							}		
+							MovingsCar.addTo(map);
+							map.addLayer(MovingsCar);				
+						}
+						toggleAnimate = !toggleAnimate;
+						return false;
+					});
+				}
+
+				$.ajax({
+					type: "GET",
+					url: "ped_net.csv",
+					dataType: "text",
+					success: function(data) {drawPedData(data);}
+				});
+
+				var pedpoints = [];
+
+				function drawPedData(data) {
+					var lines = data.split(/\r\n|\n/);
+
+					var source_target = [];
+					var weight = [];
+					var movingsped = [];
+
+					for (var j = 1; j < lines.length-1; j++) {
+
+						//create lists of source, target, frequency
+						var values = lines[j].split(',');
+						source_target.push([parseInt(values[0]),parseInt(values[1])]);
+						weight.push(parseInt(values[2]));
+
+						//draw wifi data from pedestrians on map
+						for (var i = 0; i < source_target.length-1; i++) {
+							source = [parseFloat(latlng[source_target[i][0]][0]), parseFloat(latlng[source_target[i][0]][1])];
+							target = [parseFloat(latlng[source_target[i][1]][0]), parseFloat(latlng[source_target[i][1]][1])];
+							scaled_weight = 10*parseFloat(weight[i]/parseFloat(eval(weight.join('+'))));
+
+							var pedpoint = L.circleMarker(source, {
+								radius: 5*scaled_weight,
+								color: 'black',
+								fillOpacity: 0.7
+							});
+							pedpoint.bindLabel("Wi-fi Access Point " + source_target[i][0] + " to Wi-fi Access Point " + source_target[i][1]);
+							pedpoints.push(pedpoint);
+							var movingped = L.circleMarker.movingMarker([[source, target]], [scaled_weight*1000], {autostart: true});
+							movingsped.push(movingped);
+						}
+					}
+					MovingsPed = L.layerGroup(movingsped);
+					WifiPed = L.layerGroup(pedpoints);
+					WifiPed.addTo(map);		
+					$("#animate").on("click", function(pedpoints) {
+						if (!toggleAnimate) {
+							console.log("stop animating");
+							for (var i = 0; i < pedpoints.length-1; i++) {
+								pedpoints[i].setRadius(5);
+								map.removeLayer(MovingsPed);
+							}
+						}
+						else {
+							console.log("start animating");
+							for (var i = 0; i < pedpoints.length-1; i++) {
+								pedpoints[i].setRadius(5*scaled_weight[i]);
+							}		
+							MovingsPed.addTo(map);
+							map.addLayer(MovingsPed);				
+						}
+						toggleAnimate = !toggleAnimate;
+						return false;
+					});				
+				}				
+			}
+
+			$.ajax({
+				type: "GET",
+				url: "Tripadvisor.csv",
+				dataType: "text",
+				success: function(data) {drawPOI(data);}
+			});
+
+			function drawPOI(data) {
+				var lines = data.split(/\r\n|\n/);
+
+				var name = [];
+				var latlng = [];
+				var type = [];
+
+				var pois = [];
+
+				for (var j = 1; j < lines.length; j++) {
+
+					//create lists of name, latlng, and type
+					var values = lines[j].split(',');
+					name.push(values[0]);
+					latlng.push([values[1], values[2]]);
+					type.push(values[7]);
+
+					//draw markers on map
+					for (var i = 0; i < name.length; i++) {
+						point = latlng[i];
+						var clr;
+						if (type[i] == "Restaurant") {
+							clr = 'green';
+						}
+						else if (type[i] == "Attraction") {
+							clr = 'purple';
+						}
+						else if (type[i] == "Hotel") {
+							clr = 'orange';
+						}
+						var poi = L.circle(point, 2, {
+							color: clr,
+							fillColor: clr,
+							fillOpacity: 0.7
+						});
+						poi.bindLabel(type[i] + ": " + name[i]);
+						pois.push(poi);
+					}
+				}	
+				POI = L.layerGroup(pois);
+				POI.addTo(map);		
+			}
+
+		}
+
+		window.onload = init();
+	</script>
+</body>
+</html>
